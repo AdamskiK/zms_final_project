@@ -6,9 +6,10 @@ from random import randint
 
 HORIZON = 3*365  # days
 KONTRAKT_VALUE = 3*10**7  # contract value in PLN
-TOTAL_DRIVERS = 2
 SLEEP_TIME = 10  # sleeping time
 AVERAGE_LORRY_WEIGHT = 2000  # kg
+AVERAGE_LOAD_WEIGHT = 1200  # kg
+AVERAGE_LOAD_WEIGHT_STD = 500  # kg
 AVERAGE_HOURLY_WAGE = 20  # PLN
 AVERAGE_HOURLY_WAGE_STD = 0.02  # PLN
 
@@ -52,7 +53,8 @@ class DriverSimulation:
         self.refueling_frequency = refueling_frequency
         self.refueling_liter_range = refueling_liter_range
         self.total_cost = []
-        self.total_penalty_points = []
+        self.total_penalty_points = 0
+        self.counter = 0
 
     def run_simulation(self):
         """
@@ -76,28 +78,24 @@ class DriverSimulation:
         :return: yield different timeouts
         :rtype: env.timeout type
         """
-        counter = 0
         while True:
             # calculate fixed-driving costs
-            self.total_cost.append(self._calculate_total_cost())
-            self.total_penalty_points.append(self._add_penalty_points())
-
-            # imitate refueling during the course
-            if counter % self.refueling_frequency == 0:
-                self.total_cost.append(self._cost_petrol_refueling())
+            self.total_cost.append(self._calculate_costs())
+            self.total_penalty_points += self._add_penalty_points()
             yield env.timeout(self.driving_time)
 
-            # check if a number of penalty point has been exceeded
-            if sum(self.total_penalty_points) >= 24:
+            # check if a number of penalty points has been exceeded
+            if self.total_penalty_points >= 24:
                 cought_by_police = env.process(self._sentence_serving(env))
                 yield cought_by_police
+                self.total_penalty_points = 0
 
             # the driver must rest after driving
             free_time = np.random.normal(SLEEP_TIME, 2)
             yield env.timeout(free_time)
-            counter += 1
+            self.counter += 1
 
-    def _calculate_total_cost(self):
+    def _calculate_costs(self):
         """
         Sum up a whole cost per one run
 
@@ -108,7 +106,24 @@ class DriverSimulation:
         cost += self._cost_route_fine()
         cost += self._cost_petrol()
         cost += self._cost_wage()
+        cost += self._refueling_cost()
         return cost
+
+    def _refueling_cost(self):
+        """
+        Calculate refueling costs during a course
+
+        :return: a refueling cost
+        :rtype: integer
+        """
+        if self.counter % self.refueling_frequency == 0:
+            lowest_amount = self.refueling_liter_range[0]  # take a minimum value
+            highest_amount = self.refueling_liter_range[1]  # take a maximum value
+            refueled_petrol = randint(lowest_amount, highest_amount)
+            cost = refueled_petrol * self.petrol_cost
+            return cost
+        else:
+            return 0
 
     def _cost_route_fine(self):
         """
@@ -138,19 +153,6 @@ class DriverSimulation:
         avg_drive_time = np.random.normal(self.driving_time, self.driving_time_std)
         hourly_wage = np.random.normal(self.hourly_wage, self.hourly_wage_std)
         return avg_drive_time * hourly_wage
-
-    def _cost_petrol_refueling(self, ):
-        """
-        Calculate a refueling cost
-
-        :return: a refueling cost
-        :rtype: integer
-        """
-        lowest_amount = self.refueling_liter_range[0]
-        highest_amount = self.refueling_liter_range[1]
-        refueled_petrol = randint(lowest_amount, highest_amount)
-        cost = refueled_petrol * self.petrol_cost
-        return cost
 
     @staticmethod
     def _sentence_serving(env):
@@ -210,7 +212,7 @@ class Simulate:
 
 
 def main():
-    simulation = Simulate(2)
+    simulation = Simulate(n_drivers=2)
     t_cost = simulation.generate_cost()
     print(f"total cost equals to: {round(t_cost, 2)}")
 
