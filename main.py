@@ -5,7 +5,6 @@ from random import randint
 
 # fixed variables
 HORIZON = 3*365  # days
-KONTRAKT_VALUE = 3*10**7  # contract value in PLN
 COST_OF_LORRY = 10**5  # PLN
 AVERAGE_HOURLY_WAGE = 20  # PLN
 AVERAGE_HOURLY_WAGE_STD = 5  # PLN
