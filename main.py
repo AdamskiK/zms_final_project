@@ -1,6 +1,7 @@
 import numpy as np
 import simpy
-
+import statistics as stat
+import pandas as pd
 from random import randint
 
 # fixed variables
@@ -8,9 +9,9 @@ HORIZON = 3*365  # days
 COST_OF_LORRY = 10**5  # PLN
 AVERAGE_HOURLY_WAGE = 20  # PLN
 AVERAGE_HOURLY_WAGE_STD = 5  # PLN
-AVERAGE_LORRY_WEIGHT = 1500  # kg
-AVERAGE_LOAD_WEIGHT = 1000  # kg
-AVERAGE_LOAD_WEIGHT_STD = 1000  # kg
+AVERAGE_LORRY_WEIGHT = 2000  # kg
+AVERAGE_LOAD_WEIGHT = 2000  # kg
+AVERAGE_LOAD_WEIGHT_STD = 1500  # kg
 PRICE_PER_KG = 10  # PLN
 SLEEP_TIME = 10  # sleeping time
 LORRY_MALFUNCTION_DISTANCE = 10**5
@@ -27,10 +28,10 @@ SLOW_WAY_FINE = 0  # PLN
 SLOW_WAY_PETROL_USAGE = 10/100  # liters per 100 km
 SLOW_WAY_REFUELING_FREQUENCY = 6
 SLOW_WAY_REFUELING_LITER_RANGE = (15, 30)  # litres
-SLOW_WAY_WEIGHT_LIMIT = 3500  # kg
+SLOW_WAY_WEIGHT_LIMIT = 4500  # kg
 SLOW_WAY_FINE_FREQ = 3
 SLOW_WAY_FINE_PAID_BY_DRIVER_FREQ = 10
-SLOW_WAY_LOAD_THEFT = 0.2
+SLOW_WAY_LOAD_THEFT = 0.1
 
 
 # faster route
@@ -42,7 +43,7 @@ FAST_WAY_FINE = 400
 FAST_WAY_PETROL_USAGE = 8/100
 FAST_WAY_REFUELING_FREQUENCY = 8
 FAST_WAY_REFUELING_LITER_RANGE = (10, 20)
-FAST_WAY_WEIGHT_LIMIT = 2800
+FAST_WAY_WEIGHT_LIMIT = 3500
 FAST_WAY_FINE_FREQ = 0
 FAST_WAY_FINE_PAID_BY_DRIVER_FREQ = 0
 FAST_WAY_LOAD_THEFT = 0
@@ -104,7 +105,14 @@ class DriverSimulation:
             yield env.timeout(self.driving_time)
 
             self.number_of_courses += 1
-
+    
+    def _calculate_profit_weight(self):
+        lorry_weight = np.random.normal(AVERAGE_LORRY_WEIGHT + AVERAGE_LOAD_WEIGHT, AVERAGE_LOAD_WEIGHT_STD)
+        if lorry_weight > self.weight_limit:
+            lorry_weight = self.weight_limit
+        profit_weight = lorry_weight - AVERAGE_LORRY_WEIGHT
+        return profit_weight
+        
     def _calculate_profits(self):
         """
         Calculate total profits
@@ -112,12 +120,11 @@ class DriverSimulation:
         :return: a profit value
         :rtype: float
         """
-        lorry_weight = np.random.normal(AVERAGE_LORRY_WEIGHT + AVERAGE_LOAD_WEIGHT, AVERAGE_LOAD_WEIGHT_STD)
-        profit_weight = lorry_weight - AVERAGE_LORRY_WEIGHT
+        profit_weight = self._calculate_profit_weight()
         profit = profit_weight * PRICE_PER_KG
         profit -= self._cost_load_theft()  # loss on a theft - has to be here to be coherent
         return profit
-
+    
     def _calculate_costs(self):
         """
         Sum up a whole cost per one run
@@ -219,7 +226,7 @@ class DriverSimulation:
         theft_prob = self.theft_probability
         theft = np.random.choice([0, 1], p=[1-theft_prob, theft_prob])
         if theft == 1:
-            cost = AVERAGE_LOAD_WEIGHT * PRICE_PER_KG
+            cost = self._calculate_profit_weight() * PRICE_PER_KG
             return cost
         else:
             return 0
